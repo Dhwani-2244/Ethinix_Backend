@@ -5,10 +5,14 @@ async function Signup(req, res) {
     const db = await connectDB();
     const userCollection = db.collection("users");
 
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, address } = req.body;
 
-    if (!name || !email || !phone || !password) {
+    if (!name || !email || !phone || !password || !address) {
       return res.status(400).json({ success: false, message: "All fields are required" });
+    }
+
+    if (address.trim().length < 10) {
+      return res.status(400).json({ success: false, message: "Address must be at least 10 characters long" });
     }
 
     const userExist = await userCollection.findOne({ $or: [{ email }, { phone }] });
@@ -22,6 +26,7 @@ async function Signup(req, res) {
       email,
       phone,
       password,
+      address: address.trim(),
       profile_image: "",
       role: "User",
       status: "Active",

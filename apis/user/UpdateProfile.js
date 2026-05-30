@@ -3,11 +3,17 @@ const connectDB = require("../../db/dbConnect");
 
 async function UpdateProfile(req, res) {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, address } = req.body;
     const db = await connectDB();
     const updateFields = { updated_at: new Date() };
     if (name) updateFields.name = name;
     if (phone) updateFields.phone = phone;
+    if (address) {
+      if (address.trim().length < 10) {
+        return res.status(400).json({ success: false, message: "Address must be at least 10 characters long" });
+      }
+      updateFields.address = address.trim();
+    }
     if (req.file) updateFields.profile_image = `/uploads/profiles/${req.file.filename}`;
 
     const result = await db.collection("users").updateOne(

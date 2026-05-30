@@ -12,10 +12,13 @@ async function GetItems(req, res) {
       matchStage.category_id = new ObjectId(category_id);
     }
 
-    if (min_price || max_price) {
+    const hasMinPrice = min_price !== undefined && min_price !== "";
+    const hasMaxPrice = max_price !== undefined && max_price !== "";
+
+    if (hasMinPrice || hasMaxPrice) {
       matchStage.price = {};
-      if (min_price) matchStage.price.$gte = parseFloat(min_price);
-      if (max_price) matchStage.price.$lte = parseFloat(max_price);
+      if (hasMinPrice) matchStage.price.$gte = parseFloat(min_price);
+      if (hasMaxPrice) matchStage.price.$lte = parseFloat(max_price);
     }
 
     const items = await db
@@ -31,6 +34,37 @@ async function GetItems(req, res) {
           },
         },
         { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "inventory",
+            let: { itemId: "$_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$item_id", "$$itemId"] } } },
+              {
+                $lookup: {
+                  from: "sizes",
+                  localField: "size_id",
+                  foreignField: "_id",
+                  as: "size",
+                },
+              },
+              { $unwind: { path: "$size", preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  _id: 1,
+                  size_id: 1,
+                  quantity: 1,
+                  available: 1,
+                  size: {
+                    _id: "$size._id",
+                    size: "$size.size",
+                  },
+                },
+              },
+            ],
+            as: "inventory",
+          },
+        },
         { $sort: { created_at: -1 } },
       ])
       .toArray();

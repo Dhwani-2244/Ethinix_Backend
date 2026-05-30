@@ -3,7 +3,8 @@ const connectDB = require("../../db/dbConnect");
 
 async function AddFeedback(req, res) {
   try {
-    const { booking_id, rating, feedback } = req.body;
+    const booking_id = req.body.booking_id || req.body.order_id;
+    const { rating, feedback } = req.body;
 
     if (!booking_id || !rating || !feedback) return res.status(400).json({ success: false, message: "Order ID, rating and feedback are required" });
     if (!ObjectId.isValid(booking_id)) return res.status(400).json({ success: false, message: "Invalid order ID" });
@@ -12,6 +13,11 @@ async function AddFeedback(req, res) {
     const db = await connectDB();
     const order = await db.collection("rental_orders").findOne({ _id: new ObjectId(booking_id), user_id: new ObjectId(req.user._id) });
     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    
+    if (String(order.status || "").toLowerCase() === "cancelled") return res.status(403).json({ success: false, message: "Cancelled orders cannot be reviewed" });
+
+    const existingFeedback = await db.collection("feedbacks").findOne({ booking_id: new ObjectId(booking_id), user_id: new ObjectId(req.user._id) });
+    if (existingFeedback) return res.status(400).json({ success: false, message: "Feedback already submitted for this order" });
 
     await db.collection("feedbacks").insertOne({
       user_id: new ObjectId(req.user._id),

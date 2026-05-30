@@ -24,7 +24,9 @@ async function DashboardStats(req, res) {
       { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
       { $lookup: { from: "clothing_items", localField: "item_id", foreignField: "_id", as: "item" } },
       { $unwind: { path: "$item", preserveNullAndEmptyArrays: true } },
-      { $project: { "user.password": 0 } },
+      { $lookup: { from: "inventory", localField: "item_id", foreignField: "item_id", as: "inventory" } },
+      { $addFields: { item_available_qty: { $sum: "$inventory.available" } } },
+      { $project: { "user.password": 0, inventory: 0 } },
     ]).toArray();
 
     const recentPayments = await db.collection("payments").aggregate([

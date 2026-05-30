@@ -2,20 +2,26 @@ const { ObjectId } = require("mongodb");
 const Razorpay = require("razorpay");
 const connectDB = require("../../db/dbConnect");
 
-const razorpay = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
+const razorpay = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_SECRET_KEY });
 
 async function GenOrderId(req, res) {
   try {
-    const { order_id } = req.body;
+    const { order_id, payment_type, amount, penalty_amount } = req.body;
     if (!order_id || !ObjectId.isValid(order_id)) return res.status(400).json({ success: false, message: "Valid order ID is required" });
 
     const db = await connectDB();
     const order = await db.collection("rental_orders").findOne({ _id: new ObjectId(order_id), user_id: new ObjectId(req.user._id) });
 
     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
-    if (order.payment_status === "Success") return res.status(400).json({ success: false, message: "Payment already completed for this order" });
 
-    const razorpayOrder = await razorpay.orders.create({ amount: Math.round(order.total_amount * 100), currency: "INR", receipt: `receipt_${order_id}` });
+    const isPenaltyPayment = String(payment_type || "").toLowerCase() === "penalty";
+    if (order.payment_status === "Success" && !isPenaltyPayment) return res.status(400).json({ success: false, message: "Payment already completed for this order" });
+
+    const penaltyValue = Number(amount ?? penalty_amount ?? 0);
+    const orderAmount = isPenaltyPayment ? penaltyValue : Number(order.total_amount || 0);
+    if (orderAmount <= 0) return res.status(400).json({ success: false, message: "Valid payment amount is required" });
+
+    const razorpayOrder = await razorpay.orders.create({ amount: Math.round(orderAmount * 100), currency: "INR", receipt: `receipt_${order_id}${isPenaltyPayment ? "_penalty" : ""}` });
 
     return res.status(200).json({ success: true, message: "Order created successfully", data: { order_id: razorpayOrder.id, amount: razorpayOrder.amount, currency: razorpayOrder.currency, rental_order_id: order_id } });
   } catch (error) {

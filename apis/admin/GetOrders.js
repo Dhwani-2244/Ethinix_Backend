@@ -9,7 +9,28 @@ async function GetOrders(req, res) {
       { $unwind: { path: "$item", preserveNullAndEmptyArrays: true } },
       { $lookup: { from: "sizes", localField: "size_id", foreignField: "_id", as: "size" } },
       { $unwind: { path: "$size", preserveNullAndEmptyArrays: true } },
-      { $project: { "user.password": 0 } },
+      {
+        $lookup: {
+          from: "payments",
+          let: { orderId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$order_id", "$$orderId"] } } },
+            { $sort: { date: -1 } },
+            { $limit: 1 },
+          ],
+          as: "payment",
+        },
+      },
+      { $unwind: { path: "$payment", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "inventory", localField: "item_id", foreignField: "item_id", as: "inventory" } },
+      {
+        $addFields: {
+          paid_amount: { $ifNull: ["$payment.total_amount", 0] },
+          payment_status: { $ifNull: ["$payment.status", { $ifNull: ["$payment_status", "Pending"] }] },
+          item_available_qty: { $sum: "$inventory.available" },
+        },
+      },
+      { $project: { "user.password": 0, payment: 0, inventory: 0 } },
       { $sort: { created_at: -1 } },
     ]).toArray();
     return res.status(200).json({ success: true, message: "Orders fetched successfully", data: orders });

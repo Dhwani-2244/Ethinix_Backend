@@ -9,6 +9,13 @@ async function GetPayments(req, res) {
       { $unwind: { path: "$order", preserveNullAndEmptyArrays: true } },
       { $lookup: { from: "clothing_items", localField: "order.item_id", foreignField: "_id", as: "item" } },
       { $unwind: { path: "$item", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          payment_status: {
+            $ifNull: ["$status", { $ifNull: ["$order.payment_status", "Pending"] }],
+          },
+        },
+      },
       { $project: { "user.password": 0 } },
       { $sort: { date: -1 } },
     ]).toArray();
